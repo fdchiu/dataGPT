@@ -21,6 +21,11 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.agents.agent_toolkits.conversational_retrieval.tool import (
     create_retriever_tool,
 )
+from langchain.chains import create_extraction_chain
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.output_parsers.json import SimpleJsonOutputParser
+import json
 
 load_dotenv()
 
@@ -187,28 +192,91 @@ def get_chain(prompt, dfs):
     )
     return agent_executor
 
+def process_data(data):
+    action_data = {}
+    if 'text' in data and data['text']:
+        extracted_data = data['text'][0] if isinstance(data['text'], list) else data['text']
+
+        for key in ['plot', 'show','filedName', 'extra_info']:            
+            if key in extracted_data and extracted_data[key]:
+                action_data[key] = extracted_data[key]
+    return action_data
+
+schema = {
+        "properties": {
+            "plot": {"type": "string"},
+            "show": {"type": "string"},
+            "extra_info": {"type": "string"}
+        },    
+}
+
+schemaPlotAxis = {
+        "properties": {
+            "x_axis": {"type": "string"},
+            "y_axis": {"type": "string"},
+        },    
+        "required": ["x_axis", "y_axis"]
+}
+
+extractionChain = create_extraction_chain(schema, ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0125"))
+
+extractionChainPlotAxis = create_extraction_chain(schemaPlotAxis, ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0125"))
+
+def getAxis(inputString, dataColumnNames):
+    localPrompt = """
+        Your task is to extract x-axis and y-axis from {inputString} those can be found in the dataframe column names:
+        {dataColumnNames}
+        
+        Respond with json out with values for 'x_axis'  and 'y_axis' .
+
+        Some examples:
+        in 'orderDate vs orderQuantity', 'x_axis' = 'orderDate', 'y_axis' = 'quantity'.
+
+    """ 
+    prompt = PromptTemplate(
+        input_variables=["inputString", "dataColumnNames"],
+        template=localPrompt
+    )
+
+    #json_parser = SimpleJsonOutputParser()
+
+    llm_chain = LLMChain(
+        llm=OpenAI(openai_api_key=selected_key),
+        prompt=prompt,
+    ) 
+
+    print('getAxis')
+    print(inputString)
+    #print(dataColumnNames)
+    output = llm_chain.invoke({"inputString": inputString, "dataColumnNames": dataColumnNames})[
+        'text'].strip()
+    if output:
+        axis = extractionChainPlotAxis.invoke(output)
+        return axis
+    #print(output)
+    return None
 
 def main():
 
     st.title("dataGPT - Chat with Your Data")
     st.header("Upload your CSV data file")
     st.write("Scroll down to enter questions")
-    data_file = st.file_uploader("Upload CSV", type=["csv"])
+    #data_file = st.file_uploader("Upload CSV", type=["csv"])
         # Initialize the chat history in the session_state if it doesn't exist
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    if data_file is not None:
-        data_orders = pd.read_csv("./salesData/orders.csv")
-        data_orderDetails = pd.read_csv("./salesData/order-details.csv")
-        data_products= pd.read_csv("./salesData/products.csv")
-    else:  # Add this block
+    #if data_file is not None:
+    #    data_orders = pd.read_csv("./salesData/orders.csv")
+    #    data_orderDetails = pd.read_csv("./salesData/order-details.csv")
+    #    data_products= pd.read_csv("./salesData/products.csv")
+    #else:  # Add this block
         # Replace with your fixed file path
-        fixed_file_path = os.getcwd()+"/moviesDB.csv"  
+    #    fixed_file_path = os.getcwd()+"/moviesDB.csv"  
         #data = pd.read_csv(fixed_file_path)        
-        data_orders = pd.read_csv("./salesData/orders.csv")
-        data_orderDetails = pd.read_csv("./salesData/order-details.csv")
-        data_products = pd.read_csv("./salesData/products.csv")
+    data_orders = pd.read_csv("./salesData/orders.csv")
+    data_orderDetails = pd.read_csv("./salesData/order-details.csv")
+    data_products = pd.read_csv("./salesData/products.csv")
 
     dheads = [data_products.head().to_markdown(), data_orders.head().to_markdown(), data_orderDetails.head().to_markdown()]
     print(dheads)
@@ -229,6 +297,15 @@ def main():
     st.write("Order Details Data Overview:")
     st.write(data_orderDetails.head())
     st.divider()
+    st.subheader("Sample questions: ")
+    st.write("‒ Plot product name vs unit price")
+    st.write("‒ List all products")
+    st.write("‒ How many orders?")
+    st.write("‒ Show product name vs supplier ID")
+    st.write("‒ How many orders on 1996-07-08?")
+    st.write("‒ What's the total order amount?")
+    st.write("‒ What's the total order amount for USA?")
+    
     st.sidebar.header("Chat History")
     plot_options = ["Bar plot", "Scatter plot", "Histogram", "Box plot"]
 
@@ -237,9 +314,9 @@ def main():
         histries = st.container()
         for i, (sender, message_text) in enumerate(st.session_state.chat_history):
             if sender == "user":
-                histries.chat_message("user").write(message_text, is_user=True, key=f"{i}_user")
+                histries.chat_message("user").write(message_text)
             else:
-                histries.chat_message("assistant").write(message_text['output'], key=f"{i}")
+                histries.chat_message("assistant").write(message_text['output'])
     with st.container():
         #csv_agent = csvAgent()
         #pandaAgent = pandaFrameAgent([data_orders, data_orderDetails, data_products])
@@ -285,12 +362,55 @@ def main():
                 def initiate_chat():
                     #answer = csv_agent.run(user_input)
                     #answer = pandaAgent(user_input)
-                    answer = pythonAstRepelAgent.invoke({'input':user_input})
-                    st.session_state.chat_history.append(("user", user_input))
-                    st.session_state.chat_history.append(("agent", answer))
 
-        
-                    st.write(answer['output'])
+                    try:
+                        data = extractionChain.invoke(user_input)
+                        action_data = process_data(data)
+                        print("action_data")
+                        print(action_data)
+                        # plot
+
+                    except Exception as e:
+                        print("exception:")
+                        print(e)
+
+                        # normal operations
+                    plotInfo = None
+                    if action_data.get('plot') is not None:
+                        plotInfo = action_data['plot']
+                    else:
+                        if action_data.get('show') is not None:
+                            plotInfo =  action_data['show']
+                    if plotInfo is not None:
+                        columnNames = data_products.columns.values.tolist()+data_orders.columns.values.tolist()+data_orderDetails.columns.values.tolist()
+                        #print(columnNames)
+                        axis = getAxis(plotInfo, columnNames)
+                        if axis:
+                            print(axis)
+                            print(type(axis))
+                            
+                            x_axis = axis['text'][0]['x_axis']
+                            y_axis =  axis['text'][0]['y_axis']
+                        else:
+                            x_axis = "productName"
+                            y_axis = "unitPrice"
+                        print(x_axis)
+                        st.write("Bar plot:")
+                        try:
+                            fig, ax = plt.subplots()
+                            sns.barplot(x=data_products[x_axis], y=data_products[y_axis], ax=ax)
+                            ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=10))
+                            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+                            st.pyplot(fig)
+                        except Exception as e:    
+                            st.write("Sorry cannot plot using the specified axsis")
+                    else:
+                        answer = pythonAstRepelAgent.invoke({'input':user_input})
+                        st.session_state.chat_history.append(("user", user_input))
+                        st.session_state.chat_history.append(("agent", answer))
+            
+                        st.write(answer['output'])
+
                     st.stop()
                 # Run the asynchronous function within the event loop
                 loop.run_until_complete(initiate_chat())
