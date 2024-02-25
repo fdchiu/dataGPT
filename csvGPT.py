@@ -259,7 +259,7 @@ def getAxis(inputString, dataColumnNames):
 def main():
 
     st.title("dataGPT - Chat with Your Data")
-    st.header("Upload your CSV data file")
+    st.header("Chat and Plot With CSV Data")
     st.write("Scroll down to enter questions")
     #data_file = st.file_uploader("Upload CSV", type=["csv"])
         # Initialize the chat history in the session_state if it doesn't exist
