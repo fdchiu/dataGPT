@@ -53,5 +53,5 @@ streamlit
 matplotlib
 seaborn
 pandas
-pyautogen=0.2.11
+pyautogen==0.2.11
 langchain_experimental
