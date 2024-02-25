@@ -305,6 +305,7 @@ def main():
     st.write("‒ How many orders on 1996-07-08?")
     st.write("‒ What's the total order amount?")
     st.write("‒ What's the total order amount for USA?")
+    st.write("‒ Plot order date vs quantity")
     
     st.sidebar.header("Chat History")
     plot_options = ["Bar plot", "Scatter plot", "Histogram", "Box plot"]
@@ -398,10 +399,29 @@ def main():
                         st.write("Bar plot:")
                         try:
                             fig, ax = plt.subplots()
-                            sns.barplot(x=data_products[x_axis], y=data_products[y_axis], ax=ax)
-                            ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=10))
-                            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
-                            st.pyplot(fig)
+                            if x_axis in data_products:
+                                xData = data_products
+                            elif x_axis in data_orders:
+                                xData = data_orders
+                            elif x_axis in data_orderDetails: 
+                                xData = data_orderDetails
+                            else:
+                                xData = None
+                            if y_axis in data_products:
+                                yData = data_products
+                            elif y_axis in data_orders:
+                                yData = data_orders
+                            elif y_axis in data_orderDetails: 
+                                yData = data_orderDetails
+                            else:
+                                yData = None
+                            if xData is not None and yData is not None:
+                                sns.barplot(x=xData[x_axis], y=yData[y_axis], ax=ax)
+                                ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=10))
+                                ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+                                st.pyplot(fig)
+                            else:
+                                raise Exception("Requested data not found in csv file")
                         except Exception as e:    
                             st.write("Sorry cannot plot using the specified axsis")
                     else:
