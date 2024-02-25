@@ -55,3 +55,4 @@ seaborn
 pandas
 pyautogen==0.2.11
 langchain_experimental
+tabulate
