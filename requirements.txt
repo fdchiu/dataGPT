@@ -49,7 +49,7 @@ typing_extensions==4.9.0
 urllib3==2.2.0
 Werkzeug==3.0.1
 yarl==1.9.4
-streamlit
+streamlit=1.24.0
 matplotlib
 seaborn
 pandas
