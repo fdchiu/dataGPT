@@ -14,7 +14,7 @@ from langchain.agents import AgentExecutor, OpenAIFunctionsAgent
 import asyncio
 from langchain.vectorstores import FAISS
 from langsmith import Client
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 from langchain_experimental.tools import PythonAstREPLTool
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.embeddings import OpenAIEmbeddings
