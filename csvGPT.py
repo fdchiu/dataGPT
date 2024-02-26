@@ -279,7 +279,7 @@ def main():
     data_products = pd.read_csv("./salesData/products.csv")
 
     dheads = [data_products.head().to_markdown(), data_orders.head().to_markdown(), data_orderDetails.head().to_markdown()]
-    print(dheads)
+    #print(dheads)
     template = TEMPLATE.format(dhead=dheads)
 
     prompt = ChatPromptTemplate.from_messages(
